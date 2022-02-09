@@ -1,6 +1,6 @@
 
 # add the % sign on the axis (for values already between 1-100)
-pct <- \(...) scales::number(..., suffix = "%")
+pct <- function(...) scales::number(..., suffix = "%")
 
 
 # Convert vector of any gene format into WBGene ID
