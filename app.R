@@ -22,8 +22,8 @@ tx_long <- read_tsv("data/t_exp.tsv",
 stop_for_problems(tx_long)
 
 neurons_table <- read_csv("data/neuron_properties.csv",
-                          col_types = "cccc") |>
-    filter(Neuron_type %in% as.character(unique(tx_long$neuron_id))) |>
+                          col_types = "cccc") %>%
+    filter(Neuron_type %in% as.character(unique(tx_long$neuron_id))) %>%
     mutate(across(Modality:Neurotransmitter, str_to_lower))
 stop_for_problems(neurons_table)
 
@@ -92,14 +92,14 @@ server <- function(input, output, session) {
     
     
     # Define reactives ----
-    my_gene_id <- reactive({input$gene_id_or_name |>
-            split_text_to_vector() |>
+    my_gene_id <- reactive({input$gene_id_or_name %>%
+            split_text_to_vector() %>%
             convert_to_wb_id(gids)})
     my_gene_id_1 <- reactive(my_gene_id()[[1]])
     my_gene_name_1 <- reactive(i2s(my_gene_id_1(), gids))
-    my_neurons <- reactive(input$neurons |>
-                               str_to_upper() |>
-                               split_text_to_vector() |>
+    my_neurons <- reactive(input$neurons %>%
+                               str_to_upper() %>%
+                               split_text_to_vector() %>%
                                validate_neurons(neurons_table))
     
     useColorScale <- reactive(accepted_color_scales$ggplot[accepted_color_scales$shortcode==input$useColorScale])
@@ -112,19 +112,19 @@ server <- function(input, output, session) {
     # Single gene plots ----
     output$tx_neuron_proportions <- renderPlotly({
         
-        ind_graph <- tx_long |>
+        ind_graph <- tx_long %>%
             filter(gene_id == my_gene_id_1(),
-                   neuron_id %in% my_neurons()) |>
-            group_by(transcript_id, neuron_id) |>
+                   neuron_id %in% my_neurons()) %>%
+            group_by(transcript_id, neuron_id) %>%
             summarize(mean_cnt = mean(TPM),
                       sd_cnt = sd(TPM),
-                      .groups = "drop") |>
-            group_by(neuron_id) |>
+                      .groups = "drop") %>%
+            group_by(neuron_id) %>%
             mutate(prop = round(100*mean_cnt/sum(mean_cnt), 1),
-                   sd = sd_cnt/sum(mean_cnt)) |>
+                   sd = sd_cnt/sum(mean_cnt)) %>%
             rename(Neuron = neuron_id,
                    Transcript = transcript_id,
-                   `Transcript Usage` = prop) |>
+                   `Transcript Usage` = prop) %>%
             ggplot(aes(x=Neuron,y=`Transcript Usage`, fill = Transcript)) +
             geom_col(position = position_stack()) +
             # geom_errorbar(aes(ymin=prop,ymax=prop+sd), position = position_stack()) +
@@ -142,15 +142,15 @@ server <- function(input, output, session) {
     
     output$tx_neuron_tpm <- renderPlotly({
         
-        ind_graph <- tx_long |>
+        ind_graph <- tx_long %>%
             filter(gene_id == my_gene_id_1(),
-                   neuron_id %in% my_neurons()) |>
-            group_by(transcript_id, neuron_id) |>
+                   neuron_id %in% my_neurons()) %>%
+            group_by(transcript_id, neuron_id) %>%
             summarize(`Mean TPM` = mean(TPM),
                       sd = sd(TPM),
-                      .groups = "drop") |>
+                      .groups = "drop") %>%
             rename(`Neuron` = neuron_id,
-                   `Transcript` = transcript_id) |>
+                   `Transcript` = transcript_id) %>%
             ggplot(aes(x=`Neuron`, y=`Mean TPM`, color = `Transcript`)) +
             geom_point(position=position_dodge(.2), pch=15,size=2) +
             geom_errorbar(aes(ymin=`Mean TPM`-sd,ymax=`Mean TPM`+sd),width=0,position=position_dodge(.2)) +
@@ -168,14 +168,14 @@ server <- function(input, output, session) {
     
     output$tx_samples_proportions <- renderPlotly({
         
-        ind_graph <- tx_long |>
+        ind_graph <- tx_long %>%
             filter(gene_id == my_gene_id_1(),
-                   neuron_id %in% my_neurons()) |>
-            group_by(sample_id, gene_id) |>
-            mutate(sample_prop = round(100*TPM/sum(TPM), 1)) |>
+                   neuron_id %in% my_neurons()) %>%
+            group_by(sample_id, gene_id) %>%
+            mutate(sample_prop = round(100*TPM/sum(TPM), 1)) %>%
             rename(Neuron = neuron_id,
                    Transcript = transcript_id,
-                   `Transcript Proportion` = sample_prop) |>
+                   `Transcript Proportion` = sample_prop) %>%
             ggplot(aes(x=sample_id, y=`Transcript Proportion`, fill = Transcript)) +
             geom_col(position = position_stack()) +
             # geom_errorbar(aes(ymin=prop,ymax=prop+sd), position = position_stack()) +
@@ -191,12 +191,12 @@ server <- function(input, output, session) {
     
     output$tx_samples_tpm <- renderPlotly({
         
-        ind_graph <- tx_long |>
+        ind_graph <- tx_long %>%
             filter(gene_id == my_gene_id_1(),
-                   neuron_id %in% my_neurons()) |>
+                   neuron_id %in% my_neurons()) %>%
             rename(Neuron = neuron_id,
                    Transcript = transcript_id,
-                   `Transcript Usage` = TPM) |>
+                   `Transcript Usage` = TPM) %>%
             ggplot(aes(x=sample_id, y=`Transcript Usage`, fill = Transcript)) +
             theme_classic() +
             geom_point(position=position_dodge(.2), pch=15,size=2) +
@@ -215,17 +215,17 @@ server <- function(input, output, session) {
     # output$heatmapCplx <- renderPlot({
     #     
     #     message("Plot Cplx!")
-    #     tx_long |>
+    #     tx_long %>%
     #         filter(gene_id %in% my_gene_id(),
-    #                neuron_id %in% my_neurons()) |>
-    #         mutate(gene_id = i2s(gene_id, gids)) |>
-    #         group_by(gene_id, transcript_id, neuron_id) |>
-    #         summarize(mean_tpm = mean(TPM)) |>
+    #                neuron_id %in% my_neurons()) %>%
+    #         mutate(gene_id = i2s(gene_id, gids)) %>%
+    #         group_by(gene_id, transcript_id, neuron_id) %>%
+    #         summarize(mean_tpm = mean(TPM)) %>%
     #         rename(TPM = mean_tpm,
     #                Transcript = transcript_id,
     #                Neuron = neuron_id,
-    #                Gene = gene_id) |>
-    #         group_by(Gene) |>
+    #                Gene = gene_id) %>%
+    #         group_by(Gene) %>%
     #         tidyHeatmap::heatmap(Transcript, Neuron, TPM,
     #                              transform = log1p, .scale = "none",
     #                              cluster_columns=FALSE,
@@ -237,19 +237,19 @@ server <- function(input, output, session) {
     
     output$heatmapPhmp <- renderPlot({
 
-        tx_long |>
+        tx_long %>%
             filter(gene_id %in% my_gene_id(),
-                   neuron_id %in% my_neurons()) |>
-            mutate(gene_id = i2s(gene_id, gids)) |>
-            group_by(gene_id, transcript_id, neuron_id) |>
+                   neuron_id %in% my_neurons()) %>%
+            mutate(gene_id = i2s(gene_id, gids)) %>%
+            group_by(gene_id, transcript_id, neuron_id) %>%
             summarize(mean_tpm = log1p(mean(TPM)),
-                      .groups = "drop") |>
+                      .groups = "drop") %>%
             rename(`log(TPM)` = mean_tpm,
                    Transcript = transcript_id,
                    Neuron = neuron_id,
-                   Gene = gene_id) |>
-            mutate(Transcript = factor(Transcript, levels = sort(as.character(unique(Transcript))))) |>
-            arrange(Gene, Transcript, Neuron) |>
+                   Gene = gene_id) %>%
+            mutate(Transcript = factor(Transcript, levels = sort(as.character(unique(Transcript))))) %>%
+            arrange(Gene, Transcript, Neuron) %>%
             tidyheatmap::tidy_heatmap(rows = Transcript,
                                       columns =  Neuron,
                                       values =  `log(TPM)`,

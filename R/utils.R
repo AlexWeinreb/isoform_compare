@@ -33,7 +33,7 @@ convert_to_wb_id <- function(gene_id_or_name, gids){
 # split gene or neuron list into vector
 split_text_to_vector <- function(text){
   str_split(text,
-            pattern = "[[:space:],;]")[[1]] |>
+            pattern = "[[:space:],;]")[[1]] %>%
     stringi::stri_remove_empty()
 }
 
@@ -77,43 +77,43 @@ validate_neurons <- function(neurs, neurons_table){
   
   # Subcategories
   if(any(neurs == "SENSORY")){
-    neurs <- setdiff(neurs, "SENSORY") |>
+    neurs <- setdiff(neurs, "SENSORY") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Modality, "sensory")])
   }
   if(any(neurs == "INTERNEURON")){
-    neurs <- setdiff(neurs, "INTERNEURON") |>
+    neurs <- setdiff(neurs, "INTERNEURON") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Modality, "interneuron")])
   }
   if(any(neurs == "MOTOR")){
-    neurs <- setdiff(neurs, "MOTOR") |>
+    neurs <- setdiff(neurs, "MOTOR") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Modality, "motor")])
   }
   if(any(neurs == "PHARYNGEAL")){
-    neurs <- setdiff(neurs, "PHARYNGEAL") |>
+    neurs <- setdiff(neurs, "PHARYNGEAL") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Modality, "pharyngeal")])
   }
   if(any(neurs == "CILIATED")){
-    neurs <- setdiff(neurs, "CILIATED") |>
+    neurs <- setdiff(neurs, "CILIATED") %>%
       c(neurons_table$Neuron_type[neurons_table$Ciliated == "yes"])
   }
   if(any(neurs == "ACH")){
-    neurs <- setdiff(neurs, "ACH") |>
+    neurs <- setdiff(neurs, "ACH") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Neurotransmitter, "ach")])
   }
   if(any(neurs == "SEROTONIN")){
-    neurs <- setdiff(neurs, "SEROTONIN") |>
+    neurs <- setdiff(neurs, "SEROTONIN") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Neurotransmitter, "serotonin")])
   }
   if(any(neurs == "GLUTAMATE")){
-    neurs <- setdiff(neurs, "GLUTAMATE") |>
+    neurs <- setdiff(neurs, "GLUTAMATE") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Neurotransmitter, "glutamate")])
   }
   if(any(neurs == "GABA")){
-    neurs <- setdiff(neurs, "GABA") |>
+    neurs <- setdiff(neurs, "GABA") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Neurotransmitter, "gaba")])
   }
   if(any(neurs == "OCTOPAMINE")){
-    neurs <- setdiff(neurs, "OCTOPAMINE") |>
+    neurs <- setdiff(neurs, "OCTOPAMINE") %>%
       c(neurons_table$Neuron_type[str_detect(neurons_table$Neurotransmitter, "octopamine")])
   }
   
