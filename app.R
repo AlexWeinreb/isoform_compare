@@ -7,7 +7,6 @@
 library(shiny)
 library(plotly)
 library(tidyverse)
-library(InteractiveComplexHeatmap)
 
 library(wbData)
 gids <- wb_load_gene_ids(281)
