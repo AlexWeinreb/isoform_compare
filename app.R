@@ -60,10 +60,6 @@ ui <- fluidPage(
     mainPanel(
       tabsetPanel(
         tabPanel("Single gene",
-                 
-                 
-                 
-                 
                  conditionalPanel('input.plotIndividualSamples == 0',
                                   plotlyOutput("tx_neuron_proportions")),
                  conditionalPanel('input.plotIndividualSamples == 0',
@@ -76,7 +72,6 @@ ui <- fluidPage(
         ),
         
         tabPanel("Heatmap of transcript expression",
-                 
                  # plotOutput("heatmapCplx"),
                  # plotOutput("heatmapPhmp", width = "90%"),
                  plotlyOutput("heatmap")
@@ -106,6 +101,14 @@ server <- function(input, output, session) {
   scaleFill <- reactive(accepted_color_scales$fill_scale[accepted_color_scales$shortcode==input$useColorScale])
   scaleColor <- reactive(accepted_color_scales$color_scale[accepted_color_scales$shortcode==input$useColorScale])
 
+  
+  # shinyBS::addPopover(session,
+  #                     id = "neurons",
+  #                     title = "Neurons",
+  #                     content = '<p>Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ...</p><p>You can combine keywords and neuron names as needed.</p>',
+  #                     placement = "right",
+  #                     trigger = "click")
+  
   
   # Single gene plots ----
   output$tx_neuron_proportions <- renderPlotly({
@@ -280,9 +283,8 @@ server <- function(input, output, session) {
       geom_tile(aes(x = Neuron, y =  Transcript, fill = `log(TPM)`)) +
       geom_text(aes(x = 'Gene', y = Transcript, color = Gene, label = Gene)) +
       scale_x_discrete(limits = c(unique(plot_data$Neuron), '','Gene',' ')) +
-      scale_fill_gradient2(low = scales::muted("blue"),
-                           high = scales::muted("red"),
-                           midpoint = 3) +
+      # viridis::scale_fill_viridis(direction = 1, option = "magma") +
+      scale_fill_gradientn(colors = MetBrewer::met.brewer("OKeeffe2",direction = -1)) +
       theme(axis.text.x = element_text(angle = 90,
                                        hjust = 1,
                                        vjust = 0.5)) +
