@@ -269,10 +269,10 @@ server <- function(input, output, session) {
              neuron_id %in% my_neurons()) %>%
       mutate(gene_id = i2s(gene_id, gids)) %>%
       group_by(gene_id, transcript_id, neuron_id) %>%
-      summarize(mean_tpm = log1p(mean(TPM)),
+      summarize(`log(TPM)` = log1p(mean(TPM)),
+                TPM = mean(TPM),
                 .groups = "drop") %>%
-      rename(`log(TPM)` = mean_tpm,
-             Transcript = transcript_id,
+      rename(Transcript = transcript_id,
              Neuron = neuron_id,
              Gene = gene_id) %>%
       mutate(Transcript = factor(Transcript, levels = sort(as.character(unique(Transcript))))) %>%
@@ -280,7 +280,10 @@ server <- function(input, output, session) {
     
     gg <- ggplot(plot_data) +
       theme_minimal() +
-      geom_tile(aes(x = Neuron, y =  Transcript, fill = `log(TPM)`)) +
+      {if(input$log_scale) {
+        geom_tile(aes(x = Neuron, y =  Transcript, fill = `log(TPM)`))
+        } else {
+          geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM))}} +
       geom_text(aes(x = 'Gene', y = Transcript, color = Gene, label = Gene)) +
       scale_x_discrete(limits = c(unique(plot_data$Neuron), '','Gene',' ')) +
       # viridis::scale_fill_viridis(direction = 1, option = "magma") +
@@ -288,7 +291,11 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 90,
                                        hjust = 1,
                                        vjust = 0.5)) +
-      labs(title = "Transcript expression level (log TPM — mean per neuron)", x=NULL, y=NULL)
+      {if(input$log_scale) {
+        labs(title = "Transcript expression level (log TPM — mean per neuron)", x=NULL, y=NULL)
+      } else {
+        labs(title = "Transcript expression level (mean TPM per neuron)", x=NULL, y=NULL)}}
+      
     
     ggplotly(gg)
   })
