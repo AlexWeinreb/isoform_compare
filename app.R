@@ -50,36 +50,43 @@ ui <- fluidPage(
       textInput(inputId = "gene_id_or_name",
                 label = "Gene:",
                 value = "ric-4"),
-      textInput(inputId = "neurons",
-                label = "Neurons:",
-                value = "ALL"),
-      checkboxInput("plotIndividualSamples", "Plot individual samples"),
-      checkboxInput("log_scale", "Use log scale for TPM"),
-      selectInput("useColorScale", "Color scale", accepted_color_scales$shortcode)
-    ),
-    mainPanel(
-      tabsetPanel(
-        tabPanel("Single gene",
-                 conditionalPanel('input.plotIndividualSamples == 0',
-                                  plotlyOutput("tx_neuron_proportions")),
-                 conditionalPanel('input.plotIndividualSamples == 0',
-                                  plotlyOutput("tx_neuron_tpm")),
-                 conditionalPanel('input.plotIndividualSamples == 1',
-                                  plotlyOutput("tx_samples_proportions")),
-                 conditionalPanel('input.plotIndividualSamples == 1',
-                                  plotlyOutput("tx_samples_tpm")),
-                 width = 3
+      fluidRow(
+        column(width = 10,
+               textInput(inputId = "neurons",
+                         label = "Neurons:",
+                         value = "ALL")),
+        column(width = 1,
+               actionButton("explainNeurons",
+                            label = "",
+                            icon = icon("question")))
         ),
-        
-        tabPanel("Heatmap of transcript expression",
-                 # plotOutput("heatmapCplx"),
-                 # plotOutput("heatmapPhmp", width = "90%"),
-                 plotlyOutput("heatmap")
-                 
-        )
+   checkboxInput("plotIndividualSamples", "Plot individual samples"),
+   checkboxInput("log_scale", "Use log scale for TPM"),
+   selectInput("useColorScale", "Color scale", accepted_color_scales$shortcode)
+  ),
+  mainPanel(
+    tabsetPanel(
+      tabPanel("Single gene",
+               conditionalPanel('input.plotIndividualSamples == 0',
+                                plotlyOutput("tx_neuron_proportions")),
+               conditionalPanel('input.plotIndividualSamples == 0',
+                                plotlyOutput("tx_neuron_tpm")),
+               conditionalPanel('input.plotIndividualSamples == 1',
+                                plotlyOutput("tx_samples_proportions")),
+               conditionalPanel('input.plotIndividualSamples == 1',
+                                plotlyOutput("tx_samples_tpm")),
+               width = 3
+      ),
+      
+      tabPanel("Heatmap of transcript expression",
+               # plotOutput("heatmapCplx"),
+               # plotOutput("heatmapPhmp", width = "90%"),
+               plotlyOutput("heatmap")
+               
       )
     )
   )
+)
 )
 
 
@@ -100,7 +107,7 @@ server <- function(input, output, session) {
   
   scaleFill <- reactive(accepted_color_scales$fill_scale[accepted_color_scales$shortcode==input$useColorScale])
   scaleColor <- reactive(accepted_color_scales$color_scale[accepted_color_scales$shortcode==input$useColorScale])
-
+  
   
   # shinyBS::addPopover(session,
   #                     id = "neurons",
@@ -109,6 +116,13 @@ server <- function(input, output, session) {
   #                     placement = "right",
   #                     trigger = "click")
   
+  observeEvent(input$explainNeurons, {
+    showModal(modalDialog(
+      title = "Neurons",
+      'Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ...',
+      easyClose = TRUE
+    ))
+  })
   
   # Single gene plots ----
   output$tx_neuron_proportions <- renderPlotly({
@@ -142,7 +156,7 @@ server <- function(input, output, session) {
   
   output$tx_neuron_tpm <- renderPlotly({
     
-
+    
     ind_graph <- tx_long %>%
       filter(gene_id == my_gene_id_1(),
              neuron_id %in% my_neurons()) %>%
@@ -192,7 +206,7 @@ server <- function(input, output, session) {
   
   output$tx_samples_tpm <- renderPlotly({
     
-
+    
     ind_graph <- tx_long %>%
       filter(gene_id == my_gene_id_1(),
              neuron_id %in% my_neurons()) %>%
@@ -282,8 +296,8 @@ server <- function(input, output, session) {
       theme_minimal() +
       {if(input$log_scale) {
         geom_tile(aes(x = Neuron, y =  Transcript, fill = `log(TPM)`))
-        } else {
-          geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM))}} +
+      } else {
+        geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM))}} +
       geom_text(aes(x = 'Gene', y = Transcript, color = Gene, label = Gene)) +
       scale_x_discrete(limits = c(unique(plot_data$Neuron), '','Gene',' ')) +
       # viridis::scale_fill_viridis(direction = 1, option = "magma") +
@@ -295,7 +309,7 @@ server <- function(input, output, session) {
         labs(title = "Transcript expression level (log TPM — mean per neuron)", x=NULL, y=NULL)
       } else {
         labs(title = "Transcript expression level (mean TPM per neuron)", x=NULL, y=NULL)}}
-      
+    
     
     ggplotly(gg)
   })
