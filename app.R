@@ -289,8 +289,8 @@ server <- function(input, output, session) {
       rename(Transcript = transcript_id,
              Neuron = neuron_id,
              Gene = gene_id) %>%
-      mutate(Transcript = factor(Transcript, levels = sort(as.character(unique(Transcript))))) %>%
-      arrange(Gene, Transcript, Neuron)
+      arrange(Gene, Transcript, Neuron) %>%
+      mutate(Transcript = fct_inorder(Transcript))
     
     gg <- ggplot(plot_data) +
       theme_minimal() +
