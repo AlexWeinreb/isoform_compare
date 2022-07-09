@@ -5,26 +5,33 @@
 
 #~ Packages ----
 library(shiny)
-library(plotly)
-library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
 
 library(wbData)
 gids <- wb_load_gene_ids(281)
 
 #~ Data ----
-tx_long <- read_tsv("data/t_exp.tsv",
-                    col_types = cols(transcript_id = col_character(),
-                                     gene_id = col_character(),
-                                     sample_id = col_character(),
-                                     neuron_id = col_character(),
-                                     TPM = col_double()))
-stop_for_problems(tx_long)
 
-neurons_table <- read_csv("data/neuron_properties.csv",
+t_exp_db <- DBI::dbConnect(duckdb::duckdb(),
+                           "data/t_exp.duckdb.db",
+                           read_only = TRUE)
+
+tx_long <- tbl(t_exp_db, "t_exp")
+
+
+measured_neurons <- tx_long |>
+  select(neuron_id) |>
+  distinct() |>
+  pull(neuron_id)
+
+
+neurons_table <- readr::read_csv("data/neuron_properties.csv",
                           col_types = "cccc") %>%
-  filter(Neuron_type %in% as.character(unique(tx_long$neuron_id))) %>%
-  mutate(across(Modality:Neurotransmitter, str_to_lower))
-stop_for_problems(neurons_table)
+  filter(Neuron_type %in% measured_neurons) %>%
+  mutate(across(Modality:Neurotransmitter, stringr::str_to_lower))
+readr::stop_for_problems(neurons_table)
 
 
 accepted_color_scales <- tribble(
@@ -68,20 +75,18 @@ ui <- fluidPage(
     tabsetPanel(
       tabPanel("Single gene",
                conditionalPanel('input.plotIndividualSamples == 0',
-                                plotlyOutput("tx_neuron_proportions")),
+                                plotly::plotlyOutput("tx_neuron_proportions")),
                conditionalPanel('input.plotIndividualSamples == 0',
-                                plotlyOutput("tx_neuron_tpm")),
+                                plotly::plotlyOutput("tx_neuron_tpm")),
                conditionalPanel('input.plotIndividualSamples == 1',
-                                plotlyOutput("tx_samples_proportions")),
+                                plotly::plotlyOutput("tx_samples_proportions")),
                conditionalPanel('input.plotIndividualSamples == 1',
-                                plotlyOutput("tx_samples_tpm")),
+                                plotly::plotlyOutput("tx_samples_tpm")),
                width = 3
       ),
       
       tabPanel("Heatmap of transcript expression",
-               # plotOutput("heatmapCplx"),
-               # plotOutput("heatmapPhmp", width = "90%"),
-               plotlyOutput("heatmap")
+               plotly::plotlyOutput("heatmap")
                
       )
     )
@@ -100,7 +105,7 @@ server <- function(input, output, session) {
   my_gene_id_1 <- reactive(my_gene_id()[[1]])
   my_gene_name_1 <- reactive(i2s(my_gene_id_1(), gids))
   my_neurons <- reactive(input$neurons %>%
-                           str_to_upper() %>%
+                           stringr::str_to_upper() %>%
                            split_text_to_vector() %>%
                            validate_neurons(neurons_table))
   
@@ -109,27 +114,23 @@ server <- function(input, output, session) {
   scaleColor <- reactive(accepted_color_scales$color_scale[accepted_color_scales$shortcode==input$useColorScale])
   
   
-  # shinyBS::addPopover(session,
-  #                     id = "neurons",
-  #                     title = "Neurons",
-  #                     content = '<p>Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ...</p><p>You can combine keywords and neuron names as needed.</p>',
-  #                     placement = "right",
-  #                     trigger = "click")
-  
   observeEvent(input$explainNeurons, {
     showModal(modalDialog(
       title = "Neurons",
-      'Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ...',
+      'Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ... The combination of all neurons corresponding to these keywords will be displayed.',
       easyClose = TRUE
     ))
   })
   
   # Single gene plots ----
-  output$tx_neuron_proportions <- renderPlotly({
+  output$tx_neuron_proportions <- plotly::renderPlotly({
     
-    ind_graph <- tx_long %>%
-      filter(gene_id == my_gene_id_1(),
-             neuron_id %in% my_neurons()) %>%
+    ind_dta <- tx_long %>%
+      filter(gene_id == !!my_gene_id_1(),
+             neuron_id %in% !!my_neurons()) |>
+      collect()
+    
+    ind_graph <- ind_dta %>%
       group_by(transcript_id, neuron_id) %>%
       summarize(mean_cnt = mean(TPM),
                 sd_cnt = sd(TPM),
@@ -149,17 +150,20 @@ server <- function(input, output, session) {
       scale_y_continuous(labels = pct) +
       scaleFill()
     
-    ggplotly(ind_graph)
+    plotly::ggplotly(ind_graph)
     
   })
   
   
-  output$tx_neuron_tpm <- renderPlotly({
+  output$tx_neuron_tpm <- plotly::renderPlotly({
     
     
-    ind_graph <- tx_long %>%
-      filter(gene_id == my_gene_id_1(),
-             neuron_id %in% my_neurons()) %>%
+    ind_dta <- tx_long %>%
+      filter(gene_id == !!my_gene_id_1(),
+             neuron_id %in% !!my_neurons()) |>
+      collect()
+    
+    ind_graph <- ind_dta %>%
       group_by(transcript_id, neuron_id) %>%
       summarize(`Mean TPM` = mean(TPM),
                 sd = sd(TPM),
@@ -175,17 +179,20 @@ server <- function(input, output, session) {
       {if(input$log_scale) scale_y_log10()} +
       labs(x=NULL,y="Mean transcript TPM (+/-sd)",title=paste0(my_gene_name_1(), "/", my_gene_id_1()))
     
-    ggplotly(ind_graph)
+    plotly::ggplotly(ind_graph)
     
   })
   
   
   
-  output$tx_samples_proportions <- renderPlotly({
+  output$tx_samples_proportions <- plotly::renderPlotly({
     
-    ind_graph <- tx_long %>%
-      filter(gene_id == my_gene_id_1(),
-             neuron_id %in% my_neurons()) %>%
+    ind_dta <- tx_long %>%
+      filter(gene_id == !!my_gene_id_1(),
+             neuron_id %in% !!my_neurons()) |>
+      collect()
+    
+    ind_graph <- ind_dta %>%
       group_by(sample_id, gene_id) %>%
       mutate(sample_prop = round(100*TPM/sum(TPM), 1)) %>%
       rename(Neuron = neuron_id,
@@ -200,19 +207,21 @@ server <- function(input, output, session) {
       scale_y_continuous(labels = pct) +
       scaleFill()
     
-    ggplotly(ind_graph)
+    plotly::ggplotly(ind_graph)
     
   })
   
-  output$tx_samples_tpm <- renderPlotly({
+  output$tx_samples_tpm <- plotly::renderPlotly({
     
-    
-    ind_graph <- tx_long %>%
-      filter(gene_id == my_gene_id_1(),
-             neuron_id %in% my_neurons()) %>%
+    ind_dta <- tx_long %>%
+      filter(gene_id == !!my_gene_id_1(),
+             neuron_id %in% !!my_neurons()) %>%
       rename(Neuron = neuron_id,
              Transcript = transcript_id,
-             `Transcript Usage` = TPM) %>%
+             `Transcript Usage` = TPM) |>
+      collect()
+    
+    ind_graph <- ind_dta %>%
       ggplot(aes(x=sample_id, y=`Transcript Usage`, fill = Transcript)) +
       theme_classic() +
       geom_point(position=position_dodge(.2), pch=15,size=2) +
@@ -221,66 +230,21 @@ server <- function(input, output, session) {
       labs(x=NULL,y="Transcript TPM",title=paste0(my_gene_name_1(), "/", my_gene_id_1())) +
       scaleFill()
     
-    ggplotly(ind_graph)
+    plotly::ggplotly(ind_graph)
     
   })
   
   
   
-  # Heatmaps ----
-  # output$heatmapCplx <- renderPlot({
-  #     
-  #     message("Plot Cplx!")
-  #     tx_long %>%
-  #         filter(gene_id %in% my_gene_id(),
-  #                neuron_id %in% my_neurons()) %>%
-  #         mutate(gene_id = i2s(gene_id, gids)) %>%
-  #         group_by(gene_id, transcript_id, neuron_id) %>%
-  #         summarize(mean_tpm = mean(TPM)) %>%
-  #         rename(TPM = mean_tpm,
-  #                Transcript = transcript_id,
-  #                Neuron = neuron_id,
-  #                Gene = gene_id) %>%
-  #         group_by(Gene) %>%
-  #         tidyHeatmap::heatmap(Transcript, Neuron, TPM,
-  #                              transform = log1p, .scale = "none",
-  #                              cluster_columns=FALSE,
-  #                              cluster_rows = FALSE,
-  #                              column_names_gp = grid::gpar(fontsize = 9))
-  #     
-  #     
-  # })
-  
-  # output$heatmapPhmp <- renderPlot({
-  #   
-  #   tx_long %>%
-  #     filter(gene_id %in% my_gene_id(),
-  #            neuron_id %in% my_neurons()) %>%
-  #     mutate(gene_id = i2s(gene_id, gids)) %>%
-  #     group_by(gene_id, transcript_id, neuron_id) %>%
-  #     summarize(mean_tpm = log1p(mean(TPM)),
-  #               .groups = "drop") %>%
-  #     rename(`log(TPM)` = mean_tpm,
-  #            Transcript = transcript_id,
-  #            Neuron = neuron_id,
-  #            Gene = gene_id) %>%
-  #     mutate(Transcript = factor(Transcript, levels = sort(as.character(unique(Transcript))))) %>%
-  #     arrange(Gene, Transcript, Neuron) %>%
-  #     tidyheatmap::tidy_heatmap(rows = Transcript,
-  #                               columns =  Neuron,
-  #                               values =  `log(TPM)`,
-  #                               annotation_row = Gene,
-  #                               gaps_row = Gene,
-  #                               fontsize = 9,
-  #                               main = "Transcript expression level (log TPM — mean per neuron)")
-  # })
-  
-  
-  output$heatmap <- renderPlotly({
+  # Heatmap ----
+  output$heatmap <- plotly::renderPlotly({
     
     plot_data <- tx_long %>%
-      filter(gene_id %in% my_gene_id(),
-             neuron_id %in% my_neurons()) %>%
+      filter(gene_id %in% !!my_gene_id(),
+             neuron_id %in% !!my_neurons()) |>
+      collect()
+    
+    gg <- plot_data %>%
       mutate(gene_id = i2s(gene_id, gids)) %>%
       group_by(gene_id, transcript_id, neuron_id) %>%
       summarize(`log(TPM)` = log1p(mean(TPM)),
@@ -290,9 +254,8 @@ server <- function(input, output, session) {
              Neuron = neuron_id,
              Gene = gene_id) %>%
       arrange(Gene, Transcript, Neuron) %>%
-      mutate(Transcript = fct_inorder(Transcript))
-    
-    gg <- ggplot(plot_data) +
+      mutate(Transcript = fct_inorder(Transcript)) %>%
+      ggplot() +
       theme_minimal() +
       {if(input$log_scale) {
         geom_tile(aes(x = Neuron, y =  Transcript, fill = `log(TPM)`))
@@ -311,7 +274,7 @@ server <- function(input, output, session) {
         labs(title = "Transcript expression level (mean TPM per neuron)", x=NULL, y=NULL)}}
     
     
-    ggplotly(gg)
+    plotly::ggplotly(gg)
   })
 }
 
