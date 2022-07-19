@@ -14,16 +14,16 @@ gids <- wb_load_gene_ids(281)
 
 #~ Data ----
 
-t_exp_db <- DBI::dbConnect(duckdb::duckdb(),
-                           "data/t_exp.duckdb.db",
+t_exp_db <- DBI::dbConnect(RSQLite::SQLite(),
+                           "data/t_exp.sqlite.db",
                            read_only = TRUE)
 
 tx_long <- tbl(t_exp_db, "t_exp")
 
 
-measured_neurons <- tx_long |>
-  select(neuron_id) |>
-  distinct() |>
+measured_neurons <- tx_long %>%
+  select(neuron_id) %>%
+  distinct() %>%
   pull(neuron_id)
 
 
@@ -127,7 +127,7 @@ server <- function(input, output, session) {
     
     ind_dta <- tx_long %>%
       filter(gene_id == !!my_gene_id_1(),
-             neuron_id %in% !!my_neurons()) |>
+             neuron_id %in% !!my_neurons()) %>%
       collect()
     
     ind_graph <- ind_dta %>%
@@ -160,7 +160,7 @@ server <- function(input, output, session) {
     
     ind_dta <- tx_long %>%
       filter(gene_id == !!my_gene_id_1(),
-             neuron_id %in% !!my_neurons()) |>
+             neuron_id %in% !!my_neurons()) %>%
       collect()
     
     ind_graph <- ind_dta %>%
@@ -189,7 +189,7 @@ server <- function(input, output, session) {
     
     ind_dta <- tx_long %>%
       filter(gene_id == !!my_gene_id_1(),
-             neuron_id %in% !!my_neurons()) |>
+             neuron_id %in% !!my_neurons()) %>%
       collect()
     
     ind_graph <- ind_dta %>%
@@ -218,7 +218,7 @@ server <- function(input, output, session) {
              neuron_id %in% !!my_neurons()) %>%
       rename(Neuron = neuron_id,
              Transcript = transcript_id,
-             `Transcript Usage` = TPM) |>
+             `Transcript Usage` = TPM) %>%
       collect()
     
     ind_graph <- ind_dta %>%
@@ -241,7 +241,7 @@ server <- function(input, output, session) {
     
     plot_data <- tx_long %>%
       filter(gene_id %in% !!my_gene_id(),
-             neuron_id %in% !!my_neurons()) |>
+             neuron_id %in% !!my_neurons()) %>%
       collect()
     
     gg <- plot_data %>%
