@@ -34,12 +34,20 @@ neurons_table <- readr::read_csv("data/neuron_properties.csv",
 readr::stop_for_problems(neurons_table)
 
 
-accepted_color_scales <- tribble(
+tsingle_color_scales <- tribble(
   ~shortcode,      ~fill_scale,                                     ~color_scale,
   'viridis' ,       viridis::scale_fill_viridis(discrete = TRUE),   viridis::scale_color_viridis(discrete = TRUE),
-  'ggsci_d3_cat20', ggsci::scale_fill_d3("category20"),             ggsci::scale_color_d3("category20"),
-  'ggsci_npg',      ggsci::scale_fill_npg(),                        ggsci::scale_color_npg(),
+  'ggsci D3 (category20)', ggsci::scale_fill_d3("category20"),             ggsci::scale_color_d3("category20"),
+  'ggsci npg',      ggsci::scale_fill_npg(),                        ggsci::scale_color_npg(),
   'iwanthue',       hues::scale_fill_iwanthue(),                    hues::scale_color_iwanthue())
+
+theatmap_color_scales <- tribble(
+  ~shortcode,      ~fill_scale,
+  'MetBrewer OKeefe2',        scale_fill_gradientn(colors = MetBrewer::met.brewer("OKeeffe2",
+                                                                                  direction = -1)),
+  'viridis magma',  viridis::scale_fill_viridis(direction = 1, option = "magma"),
+  'White-Blue',     scale_fill_gradient2())
+
 
 
 explainNeurons_text <- 'Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ... The combination of all neurons corresponding to these keywords will be displayed.'
@@ -74,7 +82,9 @@ ui <- fluidPage(
                  ),
                  checkboxInput("plotIndividualSamples", "Plot individual samples"),
                  checkboxInput("tsingle_log_scale", "Display TPM on log scale"),
-                 selectInput("tsingle_useColorScale", "Color scale", accepted_color_scales$shortcode),
+                 selectInput("tsingle_useColorScale",
+                             label = "Color scale",
+                             choices = tsingle_color_scales$shortcode),
                  width = 2
                ),
                mainPanel(
@@ -103,7 +113,9 @@ ui <- fluidPage(
                                        icon = icon("question")))
                  ),
                  checkboxInput("theatmap_log_scale", "Display TPM on a log scale"),
-                 selectInput("theatmap_useColorScale", "Color scale", accepted_color_scales$shortcode),
+                 selectInput("theatmap_useColorScale",
+                             label =  "Color scale",
+                             choices = theatmap_color_scales$shortcode),
                  width = 2
                ),
                mainPanel(
@@ -142,11 +154,11 @@ server <- function(input, output, session) {
   
   r_tsingle_colorChoice <- reactive(input$tsingle_useColorScale)
   
-  r_tsingle_scaleFill <- reactive(accepted_color_scales$fill_scale[
-    accepted_color_scales$shortcode == r_tsingle_colorChoice()
+  r_tsingle_scaleFill <- reactive(tsingle_color_scales$fill_scale[
+    tsingle_color_scales$shortcode == r_tsingle_colorChoice()
   ])
-  r_tsingle_scaleColor <- reactive(accepted_color_scales$color_scale[
-    accepted_color_scales$shortcode == r_tsingle_colorChoice()
+  r_tsingle_scaleColor <- reactive(tsingle_color_scales$color_scale[
+    tsingle_color_scales$shortcode == r_tsingle_colorChoice()
   ])
   
   # data
@@ -173,12 +185,19 @@ server <- function(input, output, session) {
     validate_neurons(neurons_table) %>%
     reactive()
   
-  r_theatmap_scaleFill <- reactive(accepted_color_scales$fill_scale[
-    accepted_color_scales$shortcode==input$theatmap_useColorScale
+  r_theatmap_scaleFill <- reactive(theatmap_color_scales$fill_scale[
+    theatmap_color_scales$shortcode==input$theatmap_useColorScale
   ])
-  r_theatmap_scaleColor <- reactive(accepted_color_scales$color_scale[
-    accepted_color_scales$shortcode==input$theatmap_useColorScale
+  r_theatmap_scaleColor <- reactive(theatmap_color_scales$color_scale[
+    theatmap_color_scales$shortcode==input$theatmap_useColorScale
   ])
+  
+  heatmap_data <- reactive({
+    tx_long %>%
+      filter(gene_id %in% !!r_theatmap_genes_id(),
+             neuron_id %in% !!r_theatmap_neurons()) %>%
+      collect()
+  })
   
   
   ## help bubbles ----
@@ -308,12 +327,7 @@ server <- function(input, output, session) {
   output$heatmap <- plotly::renderPlotly({
     
     
-    plot_data <- tx_long %>%
-      filter(gene_id %in% !!r_theatmap_genes_id(),
-             neuron_id %in% !!r_theatmap_neurons()) %>%
-      collect()
-    
-    gg <- plot_data %>%
+    gg <- heatmap_data() %>%
       mutate(gene_id = i2s(gene_id, gids)) %>%
       group_by(gene_id, transcript_id, neuron_id) %>%
       summarize(`log(TPM)` = log1p(mean(TPM)),
@@ -333,10 +347,8 @@ server <- function(input, output, session) {
                     y = Transcript,
                     color = Gene,
                     label = Gene)) +
-      scale_x_discrete(limits = c(unique(plot_data$neuron_id), '','Gene',' ')) +
-      # viridis::scale_fill_viridis(direction = 1, option = "magma") +
-      scale_fill_gradientn(colors = MetBrewer::met.brewer("OKeeffe2",
-                                                          direction = -1)) +
+      scale_x_discrete(limits = c(unique(heatmap_data()$neuron_id), '','Gene',' ')) +
+      r_theatmap_scaleFill() +
       theme(axis.text.x = element_text(angle = 90,
                                        hjust = 1,
                                        vjust = 0.5)) +
