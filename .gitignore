@@ -2,4 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
-data/t_exp.tsv
+data/t_exp*
+
