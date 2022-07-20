@@ -34,25 +34,35 @@ neurons_table <- readr::read_csv("data/neuron_properties.csv",
 readr::stop_for_problems(neurons_table)
 
 
+#~~ lookup tables ----
 tsingle_color_scales <- tribble(
-  ~shortcode,      ~fill_scale,                                     ~color_scale,
-  'viridis' ,       viridis::scale_fill_viridis(discrete = TRUE),   viridis::scale_color_viridis(discrete = TRUE),
+  ~shortcode,              ~fill_scale,                                    ~color_scale,
+  'viridis' ,              viridis::scale_fill_viridis(discrete = TRUE),   viridis::scale_color_viridis(discrete = TRUE),
   'ggsci D3 (category20)', ggsci::scale_fill_d3("category20"),             ggsci::scale_color_d3("category20"),
-  'ggsci npg',      ggsci::scale_fill_npg(),                        ggsci::scale_color_npg(),
-  'iwanthue',       hues::scale_fill_iwanthue(),                    hues::scale_color_iwanthue())
+  'ggsci npg',             ggsci::scale_fill_npg(),                        ggsci::scale_color_npg(),
+  'iwanthue',              hues::scale_fill_iwanthue(),                    hues::scale_color_iwanthue())
 
 theatmap_color_scales <- tribble(
-  ~shortcode,      ~fill_scale,
-  'MetBrewer OKeefe2',        scale_fill_gradientn(colors = MetBrewer::met.brewer("OKeeffe2",
-                                                                                  direction = -1)),
-  'viridis magma',  viridis::scale_fill_viridis(direction = 1, option = "magma"),
-  'White-Blue',     scale_fill_gradient2())
+  ~shortcode,           ~fill_scale,
+  'MetBrewer OKeefe2',  scale_fill_gradientn(colors =
+                                               MetBrewer::met.brewer("OKeeffe2",
+                                                                     direction = -1)),
+  'viridis magma',      viridis::scale_fill_viridis(direction = 1, option = "magma"),
+  'Red-White-Blue',     scale_fill_gradient2())
+
+scale_callback <- tribble(
+  ~type,       ~callback,                              ~legend,
+  "None",      function(x) x,                          "TPM",
+  "Log2",      function(x) log2(x),                    "log2(TPM)",
+  "Z-score",   function(x) (x-mean(x))/sd(x),          "TPM Z-score",
+  "Min-Max",   function(x) (x-min(x))/(max(x)-min(x)), "scaled TPM"
+)
 
 
-
+#~~ help text ----
 explainNeurons_text <- 'Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ... The combination of all neurons corresponding to these keywords will be displayed.'
 
-#~ Functions ----
+#~~ functions ----
 source("R/utils.R")
 
 
@@ -112,7 +122,16 @@ ui <- fluidPage(
                                        label = "",
                                        icon = icon("question")))
                  ),
-                 checkboxInput("theatmap_log_scale", "Display TPM on a log scale"),
+                 fluidRow(
+                   column(width = 5,
+                          selectInput("theatmap_scale_type",
+                                      label = "Normalization",
+                                      choices = scale_callback$type)),
+                   column(width = 6,
+                          selectInput("theatmap_scale_on",
+                                      label = "Scale on",
+                                      choices = c("Transcript", "Neuron")))
+                 ),
                  selectInput("theatmap_useColorScale",
                              label =  "Color scale",
                              choices = theatmap_color_scales$shortcode),
@@ -146,11 +165,12 @@ server <- function(input, output, session) {
       i2s(gids)
   })
   
-  r_tsingle_neurons <- input$tsingle_neurons %>%
-    stringr::str_to_upper() %>%
-    split_text_to_vector() %>%
-    validate_neurons(neurons_table) %>%
-    reactive()
+  r_tsingle_neurons <- reactive({
+    input$tsingle_neurons %>%
+      stringr::str_to_upper() %>%
+      split_text_to_vector() %>%
+      validate_neurons(neurons_table)
+  })
   
   r_tsingle_colorChoice <- reactive(input$tsingle_useColorScale)
   
@@ -179,11 +199,12 @@ server <- function(input, output, session) {
       convert_to_wb_id(gids)
   })
   
-  r_theatmap_neurons <- input$theatmap_neurons %>%
-    stringr::str_to_upper() %>%
-    split_text_to_vector() %>%
-    validate_neurons(neurons_table) %>%
-    reactive()
+  r_theatmap_neurons <- reactive({
+    input$theatmap_neurons %>%
+      stringr::str_to_upper() %>%
+      split_text_to_vector() %>%
+      validate_neurons(neurons_table)
+  })
   
   r_theatmap_scaleFill <- reactive(theatmap_color_scales$fill_scale[
     theatmap_color_scales$shortcode==input$theatmap_useColorScale
@@ -192,12 +213,22 @@ server <- function(input, output, session) {
     theatmap_color_scales$shortcode==input$theatmap_useColorScale
   ])
   
+  # Normalization
+  r_theatmap_scale_callback <- reactive(scale_callback$callback[[
+    which(scale_callback$type == input$theatmap_scale_type)
+  ]])
+  r_theatmap_scale_legend <- reactive(scale_callback$legend[[
+    which(scale_callback$type == input$theatmap_scale_type)
+  ]])
+  
   heatmap_data <- reactive({
     tx_long %>%
       filter(gene_id %in% !!r_theatmap_genes_id(),
              neuron_id %in% !!r_theatmap_neurons()) %>%
       collect()
   })
+  
+  
   
   
   ## help bubbles ----
@@ -326,7 +357,6 @@ server <- function(input, output, session) {
   # Heatmap ----
   output$heatmap <- plotly::renderPlotly({
     
-    
     gg <- heatmap_data() %>%
       mutate(gene_id = i2s(gene_id, gids)) %>%
       group_by(gene_id, transcript_id, neuron_id) %>%
@@ -338,11 +368,12 @@ server <- function(input, output, session) {
              Gene = gene_id) %>%
       arrange(Gene, Transcript, Neuron) %>%
       mutate(Transcript = forcats::fct_inorder(Transcript)) %>%
+      group_by(.data[[input$theatmap_scale_on]]) %>%
+      mutate(TPM = r_theatmap_scale_callback()(TPM)) %>%
+      ungroup() %>%
       ggplot() +
       theme_minimal() +
-      {if(input$theatmap_log_scale) {
-        geom_tile(aes(x = Neuron, y =  Transcript, fill = `log(TPM)`))} else {
-          geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM))}} +
+      geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM)) +
       geom_text(aes(x = 'Gene',
                     y = Transcript,
                     color = Gene,
@@ -352,11 +383,12 @@ server <- function(input, output, session) {
       theme(axis.text.x = element_text(angle = 90,
                                        hjust = 1,
                                        vjust = 0.5)) +
-      {if(input$theatmap_log_scale) {
-        labs(title = "Transcript expression level (log TPM — mean per neuron)", x=NULL, y=NULL)
-      } else {
-        labs(title = "Transcript expression level (mean TPM per neuron)", x=NULL, y=NULL)}}
-    
+      labs(title = paste0("Transcript expression level (",
+                          r_theatmap_scale_legend(),
+                          " — mean per neuron)"),
+           fill = r_theatmap_scale_legend(),
+           x = NULL,
+           y = NULL)
     
     plotly::ggplotly(gg)
   })
