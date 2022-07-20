@@ -73,6 +73,7 @@ ui <- fluidPage(
   titlePanel("Transcript-level quantification"),
   # Layout: 2 tabs, each with a sidebar Layout
   tabsetPanel(
+    #~ Single gene ----
     tabPanel("Single gene",
              sidebarLayout(
                sidebarPanel(
@@ -100,7 +101,7 @@ ui <- fluidPage(
                  width = 2
                ),
                mainPanel(
-                 
+                 uiOutput("wormbase_browser_url"),
                  plotly::plotlyOutput("single_gene_proportions"),
                  plotly::plotlyOutput("single_gene_tpm"),
                  width = 8
@@ -108,6 +109,7 @@ ui <- fluidPage(
              )
     ),
     tabPanel("Heatmap of transcript expression",
+             #~ Heatmap ----
              sidebarLayout(
                sidebarPanel(
                  # Inputs for tab Heatmap (theatmap)
@@ -258,6 +260,19 @@ server <- function(input, output, session) {
   
   
   # Single gene plots ----
+  
+  ##~ Wormbase URL ----
+  r_wormbase_link <- eventReactive(
+    eventExpr = input$submit_tsingle,
+    valueExpr = tsingle_data_from_db()$browser_url[[1]])
+  
+  output$wormbase_browser_url <- renderUI(a("Open in Wormbase browser",
+                                            href = r_wormbase_link(),
+                                            class = "btn btn-default action-button", 
+                                            style = "fontweight:800"))
+  
+  
+  
   ##~ prepare proportions ----
   plot_tsingle_props <- eventReactive(
     eventExpr = input$submit_tsingle,
@@ -375,6 +390,7 @@ server <- function(input, output, session) {
   
   
   # Heatmap ----
+  
   #~ prepare heatmap plot ----
   plot_theatmap <- eventReactive(
     eventExpr = input$submit_theatmap,
