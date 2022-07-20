@@ -95,6 +95,8 @@ ui <- fluidPage(
                  selectInput("tsingle_useColorScale",
                              label = "Color scale",
                              choices = tsingle_color_scales$shortcode),
+                 actionButton("submit_tsingle",
+                              "Plot"),
                  width = 2
                ),
                mainPanel(
@@ -135,6 +137,8 @@ ui <- fluidPage(
                  selectInput("theatmap_useColorScale",
                              label =  "Color scale",
                              choices = theatmap_color_scales$shortcode),
+                 actionButton("submit_theatmap",
+                              "Plot"),
                  width = 2
                ),
                mainPanel(
@@ -254,102 +258,114 @@ server <- function(input, output, session) {
   
   
   # Single gene plots ----
-  ##~ proportions ----
-  output$single_gene_proportions <- plotly::renderPlotly({
-    
-    if(input$plotIndividualSamples){
+  ##~ prepare proportions ----
+  plot_tsingle_props <- eventReactive(
+    eventExpr = input$submit_tsingle,
+    valueExpr = {
+      if(input$plotIndividualSamples){
+        
+        # by sample
+        gg <- tsingle_data_from_db() %>%
+          group_by(sample_id, gene_id) %>%
+          mutate(sample_prop = round(100*TPM/sum(TPM), 1)) %>%
+          rename(Neuron = neuron_id,
+                 Transcript = transcript_id,
+                 `Transcript Proportion` = sample_prop) %>%
+          ggplot(aes(x=sample_id,
+                     y=`Transcript Proportion`,
+                     fill = Transcript)) +
+          ylab("Transcript usage (%)")
+        
+      } else{
+        
+        # by neuron: first mean per neuron class, then prop of each tx
+        gg <- tsingle_data_from_db() %>%
+          group_by(transcript_id, neuron_id) %>%
+          summarize(mean_cnt = mean(TPM),
+                    sd_cnt = sd(TPM),
+                    .groups = "drop") %>%
+          group_by(neuron_id) %>%
+          mutate(prop = round(100*mean_cnt/sum(mean_cnt), 1),
+                 sd = sd_cnt/sum(mean_cnt)) %>%
+          rename(Neuron = neuron_id,
+                 Transcript = transcript_id,
+                 `Transcript Usage` = prop) %>%
+          ggplot(aes(x=Neuron,
+                     y=`Transcript Usage`,
+                     fill = Transcript)) +
+          ylab("Mean transcript usage (%)")
+      }
       
-      # by sample
-      gg <- tsingle_data_from_db() %>%
-        group_by(sample_id, gene_id) %>%
-        mutate(sample_prop = round(100*TPM/sum(TPM), 1)) %>%
-        rename(Neuron = neuron_id,
-               Transcript = transcript_id,
-               `Transcript Proportion` = sample_prop) %>%
-        ggplot(aes(x=sample_id,
-                   y=`Transcript Proportion`,
-                   fill = Transcript)) +
-        ylab("Transcript usage (%)")
+      gg <- gg +
+        geom_col(position = position_stack()) +
+        theme_classic() +
+        coord_flip() +
+        labs(x = NULL,
+             title = paste0(r_tsingle_gene_name(), "/", r_tsingle_gene_id())) +
+        scale_y_continuous(labels = pct) +
+        r_tsingle_scaleFill()
       
-    } else{
-      
-      # by neuron: first mean per neuron class, then prop of each tx
-      gg <- tsingle_data_from_db() %>%
-        group_by(transcript_id, neuron_id) %>%
-        summarize(mean_cnt = mean(TPM),
-                  sd_cnt = sd(TPM),
-                  .groups = "drop") %>%
-        group_by(neuron_id) %>%
-        mutate(prop = round(100*mean_cnt/sum(mean_cnt), 1),
-               sd = sd_cnt/sum(mean_cnt)) %>%
-        rename(Neuron = neuron_id,
-               Transcript = transcript_id,
-               `Transcript Usage` = prop) %>%
-        ggplot(aes(x=Neuron,
-                   y=`Transcript Usage`,
-                   fill = Transcript)) +
-        ylab("Mean transcript usage (%)")
+      gg
     }
-    
-    gg <- gg +
-      geom_col(position = position_stack()) +
-      theme_classic() +
-      coord_flip() +
-      labs(x = NULL,
-           title = paste0(r_tsingle_gene_name(), "/", r_tsingle_gene_id())) +
-      scale_y_continuous(labels = pct) +
-      r_tsingle_scaleFill()
-    
-    plotly::ggplotly(gg)
+  )
+  
+  ##~ prepare tpm ----
+  plot_tsingle_tpms <- eventReactive(
+    eventExpr = input$submit_tsingle,
+    valueExpr = {
+      if(input$plotIndividualSamples){
+        
+        gg <- tsingle_data_from_db() %>%
+          rename(Neuron = neuron_id,
+                 Transcript = transcript_id,
+                 `Transcript Usage` = TPM) %>%
+          ggplot(aes(x = sample_id,
+                     y = `Transcript Usage`,
+                     color = Transcript)) +
+          ylab("Transcript TPM")
+        
+      } else{
+        
+        gg <- tsingle_data_from_db() %>%
+          group_by(transcript_id, neuron_id) %>%
+          summarize(`Mean TPM` = mean(TPM),
+                    sd = sd(TPM),
+                    .groups = "drop") %>%
+          rename(`Neuron` = neuron_id,
+                 `Transcript` = transcript_id) %>%
+          ggplot(aes(x=`Neuron`,
+                     y=`Mean TPM`,
+                     color = `Transcript`)) +
+          geom_errorbar(aes(ymin = `Mean TPM` - sd,
+                            ymax = `Mean TPM` + sd),
+                        width = 0,
+                        position = position_dodge(.2)) +
+          ylab("Mean transcript TPM (+/-sd)")
+        
+      }
+      
+      gg <- gg +
+        theme_classic() +
+        geom_point(position = position_dodge(.2),
+                   pch=15,
+                   size=1) +
+        coord_flip() +
+        {if(input$tsingle_log_scale) scale_y_log10()} +
+        labs(x = NULL,
+             title = paste0(r_tsingle_gene_name(), "/", r_tsingle_gene_id())) +
+        r_tsingle_scaleColor()
+      
+      gg
+    }
+  )
+  
+  #~ actual plots ----
+  output$single_gene_proportions <- plotly::renderPlotly({
+    plotly::ggplotly(plot_tsingle_props())
   })
   
-  ##~ tpm ----
   output$single_gene_tpm <- plotly::renderPlotly({
-    
-    if(input$plotIndividualSamples){
-      
-      gg <- tsingle_data_from_db() %>%
-        rename(Neuron = neuron_id,
-               Transcript = transcript_id,
-               `Transcript Usage` = TPM) %>%
-        ggplot(aes(x = sample_id,
-                   y = `Transcript Usage`,
-                   color = Transcript)) +
-        ylab("Transcript TPM")
-      
-    } else{
-      
-      gg <- tsingle_data_from_db() %>%
-        group_by(transcript_id, neuron_id) %>%
-        summarize(`Mean TPM` = mean(TPM),
-                  sd = sd(TPM),
-                  .groups = "drop") %>%
-        rename(`Neuron` = neuron_id,
-               `Transcript` = transcript_id) %>%
-        ggplot(aes(x=`Neuron`,
-                   y=`Mean TPM`,
-                   color = `Transcript`)) +
-        geom_errorbar(aes(ymin = `Mean TPM` - sd,
-                          ymax = `Mean TPM` + sd),
-                      width = 0,
-                      position = position_dodge(.2)) +
-        ylab("Mean transcript TPM (+/-sd)")
-      
-    }
-    
-    gg <- gg +
-      theme_classic() +
-      geom_point(position = position_dodge(.2),
-                 pch=15,
-                 size=1) +
-      coord_flip() +
-      {if(input$tsingle_log_scale) scale_y_log10()} +
-      labs(x = NULL,
-           title = paste0(r_tsingle_gene_name(), "/", r_tsingle_gene_id())) +
-      r_tsingle_scaleColor()
-    
-    
-    plotly::ggplotly(gg)
+    plotly::ggplotly(plot_tsingle_tpms())
   })
   
   
@@ -359,41 +375,47 @@ server <- function(input, output, session) {
   
   
   # Heatmap ----
+  #~ prepare heatmap plot ----
+  plot_theatmap <- eventReactive(
+    eventExpr = input$submit_theatmap,
+    valueExpr = {
+      heatmap_data() %>%
+        mutate(gene_id = i2s(gene_id, gids)) %>%
+        group_by(gene_id, transcript_id, neuron_id) %>%
+        summarize(TPM = mean(TPM),
+                  .groups = "drop") %>%
+        rename(Transcript = transcript_id,
+               Neuron = neuron_id,
+               Gene = gene_id) %>%
+        arrange(Gene, Transcript, Neuron) %>%
+        mutate(Transcript = forcats::fct_inorder(Transcript)) %>%
+        group_by(.data[[input$theatmap_scale_on]]) %>%
+        mutate(TPM = r_theatmap_scale_callback()(TPM)) %>%
+        ungroup() %>%
+        ggplot() +
+        theme_minimal() +
+        geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM)) +
+        geom_text(aes(x = 'Gene',
+                      y = Transcript,
+                      color = Gene,
+                      label = Gene)) +
+        scale_x_discrete(limits = c(unique(heatmap_data()$neuron_id), '','Gene',' ')) +
+        r_theatmap_scaleFill() +
+        theme(axis.text.x = element_text(angle = 90,
+                                         hjust = 1,
+                                         vjust = 0.5)) +
+        labs(title = paste0("Transcript expression level (",
+                            r_theatmap_scale_legend(),
+                            " — mean per neuron)"),
+             fill = r_theatmap_scale_legend(),
+             x = NULL,
+             y = NULL)
+    }
+  )
+  
+  #~ render heatmap ----
   output$heatmap <- plotly::renderPlotly({
-    
-    gg <- heatmap_data() %>%
-      mutate(gene_id = i2s(gene_id, gids)) %>%
-      group_by(gene_id, transcript_id, neuron_id) %>%
-      summarize(TPM = mean(TPM),
-                .groups = "drop") %>%
-      rename(Transcript = transcript_id,
-             Neuron = neuron_id,
-             Gene = gene_id) %>%
-      arrange(Gene, Transcript, Neuron) %>%
-      mutate(Transcript = forcats::fct_inorder(Transcript)) %>%
-      group_by(.data[[input$theatmap_scale_on]]) %>%
-      mutate(TPM = r_theatmap_scale_callback()(TPM)) %>%
-      ungroup() %>%
-      ggplot() +
-      theme_minimal() +
-      geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM)) +
-      geom_text(aes(x = 'Gene',
-                    y = Transcript,
-                    color = Gene,
-                    label = Gene)) +
-      scale_x_discrete(limits = c(unique(heatmap_data()$neuron_id), '','Gene',' ')) +
-      r_theatmap_scaleFill() +
-      theme(axis.text.x = element_text(angle = 90,
-                                       hjust = 1,
-                                       vjust = 0.5)) +
-      labs(title = paste0("Transcript expression level (",
-                          r_theatmap_scale_legend(),
-                          " — mean per neuron)"),
-           fill = r_theatmap_scale_legend(),
-           x = NULL,
-           y = NULL)
-    
-    plotly::ggplotly(gg)
+    plotly::ggplotly(plot_theatmap())
   })
   
   #~ download table ----
@@ -445,40 +467,8 @@ server <- function(input, output, session) {
         paste0(".svg")
     },
     content = function(file){
-      gg <- heatmap_data() %>%
-        mutate(gene_id = i2s(gene_id, gids)) %>%
-        group_by(gene_id, transcript_id, neuron_id) %>%
-        summarize(TPM = mean(TPM),
-                  .groups = "drop") %>%
-        rename(Transcript = transcript_id,
-               Neuron = neuron_id,
-               Gene = gene_id) %>%
-        arrange(Gene, Transcript, Neuron) %>%
-        mutate(Transcript = forcats::fct_inorder(Transcript)) %>%
-        group_by(.data[[input$theatmap_scale_on]]) %>%
-        mutate(TPM = r_theatmap_scale_callback()(TPM)) %>%
-        ungroup() %>%
-        ggplot() +
-        theme_minimal() +
-        geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM)) +
-        geom_text(aes(x = 'Gene',
-                      y = Transcript,
-                      color = Gene,
-                      label = Gene)) +
-        scale_x_discrete(limits = c(unique(heatmap_data()$neuron_id), '','Gene',' ')) +
-        r_theatmap_scaleFill() +
-        theme(axis.text.x = element_text(angle = 90,
-                                         hjust = 1,
-                                         vjust = 0.5)) +
-        labs(title = paste0("Transcript expression level (",
-                            r_theatmap_scale_legend(),
-                            " — mean per neuron)"),
-             fill = r_theatmap_scale_legend(),
-             x = NULL,
-             y = NULL)
-      
       ggsave(file,
-             plot = gg,
+             plot = plot_theatmap(),
              width = 25,
              height = 10,
              units = "cm")
