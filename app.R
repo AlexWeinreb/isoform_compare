@@ -14,9 +14,13 @@ gids <- wb_load_gene_ids(281)
 
 #~ Data ----
 
-t_exp_db <- DBI::dbConnect(RSQLite::SQLite(),
-                           "data/t_exp.sqlite.db",
-                           read_only = TRUE)
+t_exp_db <- pool::dbPool(RSQLite::SQLite(),
+             dbname = "data/t_exp.sqlite.db",
+             read_only = TRUE)
+
+onStop(function() {
+  pool::poolClose(t_exp_db)
+})
 
 tx_long <- tbl(t_exp_db, "t_exp")
 
