@@ -53,7 +53,7 @@ theatmap_color_scales <- tribble(
 scale_callback <- tribble(
   ~type,       ~callback,                              ~legend,
   "None",      function(x) x,                          "TPM",
-  "Log2",      function(x) log2(x),                    "log2(TPM)",
+  "Log2",      function(x) log2(x+1),                  "log2(TPM + 1)",
   "Z-score",   function(x) (x-mean(x))/sd(x),          "TPM Z-score",
   "Min-Max",   function(x) (x-min(x))/(max(x)-min(x)), "scaled TPM"
 )
@@ -139,6 +139,10 @@ ui <- fluidPage(
                ),
                mainPanel(
                  plotly::plotlyOutput("heatmap"),
+                 downloadButton("downloadData",
+                                label = "Download table"),
+                 downloadButton("downloadSvg",
+                                label = "Download SVG"),
                  width = 9
                )
              )
@@ -360,8 +364,7 @@ server <- function(input, output, session) {
     gg <- heatmap_data() %>%
       mutate(gene_id = i2s(gene_id, gids)) %>%
       group_by(gene_id, transcript_id, neuron_id) %>%
-      summarize(`log(TPM)` = log1p(mean(TPM)),
-                TPM = mean(TPM),
+      summarize(TPM = mean(TPM),
                 .groups = "drop") %>%
       rename(Transcript = transcript_id,
              Neuron = neuron_id,
@@ -392,6 +395,95 @@ server <- function(input, output, session) {
     
     plotly::ggplotly(gg)
   })
+  
+  #~ download table ----
+  output$downloadData <- downloadHandler(
+    filename = function(){
+      paste0(format(Sys.time(),"%y%m%d-%H%M"),
+             "_",
+             r_theatmap_genes_id() %>%
+               i2s(gids) %>%
+               paste0(collapse = "") %>%
+               substr(start = 0,
+                      stop = 20),
+             "_",
+             r_theatmap_neurons() %>%
+               paste0(collapse = "") %>%
+               substr(start = 0,
+                      stop = 20)) %>%
+        paste0(".tsv")
+    },
+    content = function(file){
+      heatmap_data() %>%
+        mutate(gene_id = i2s(gene_id, gids)) %>%
+        group_by(gene_id, transcript_id, neuron_id) %>%
+        summarize(TPM = mean(TPM),
+                  .groups = "drop") %>%
+        rename(Transcript = transcript_id,
+               Neuron = neuron_id,
+               Gene = gene_id) %>%
+        arrange(Gene, Transcript, Neuron, TPM) %>%
+        readr::write_tsv(file)
+    }
+  )
+  
+  #~ download SVG ----
+  output$downloadSvg <- downloadHandler(
+    filename = function(){
+      paste0(format(Sys.time(),"%y%m%d-%H%M"),
+             "_",
+             r_theatmap_genes_id() %>%
+               i2s(gids) %>%
+               paste0(collapse = "") %>%
+               substr(start = 0,
+                      stop = 20),
+             "_",
+             r_theatmap_neurons() %>%
+               paste0(collapse = "") %>%
+               substr(start = 0,
+                      stop = 20)) %>%
+        paste0(".svg")
+    },
+    content = function(file){
+      gg <- heatmap_data() %>%
+        mutate(gene_id = i2s(gene_id, gids)) %>%
+        group_by(gene_id, transcript_id, neuron_id) %>%
+        summarize(TPM = mean(TPM),
+                  .groups = "drop") %>%
+        rename(Transcript = transcript_id,
+               Neuron = neuron_id,
+               Gene = gene_id) %>%
+        arrange(Gene, Transcript, Neuron) %>%
+        mutate(Transcript = forcats::fct_inorder(Transcript)) %>%
+        group_by(.data[[input$theatmap_scale_on]]) %>%
+        mutate(TPM = r_theatmap_scale_callback()(TPM)) %>%
+        ungroup() %>%
+        ggplot() +
+        theme_minimal() +
+        geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM)) +
+        geom_text(aes(x = 'Gene',
+                      y = Transcript,
+                      color = Gene,
+                      label = Gene)) +
+        scale_x_discrete(limits = c(unique(heatmap_data()$neuron_id), '','Gene',' ')) +
+        r_theatmap_scaleFill() +
+        theme(axis.text.x = element_text(angle = 90,
+                                         hjust = 1,
+                                         vjust = 0.5)) +
+        labs(title = paste0("Transcript expression level (",
+                            r_theatmap_scale_legend(),
+                            " — mean per neuron)"),
+             fill = r_theatmap_scale_legend(),
+             x = NULL,
+             y = NULL)
+      
+      ggsave(file,
+             plot = gg,
+             width = 25,
+             height = 10,
+             units = "cm")
+    }
+  )
 }
 
 # Run the application 
