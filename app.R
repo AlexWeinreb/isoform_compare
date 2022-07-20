@@ -254,7 +254,7 @@ server <- function(input, output, session) {
              Neuron = neuron_id,
              Gene = gene_id) %>%
       arrange(Gene, Transcript, Neuron) %>%
-      mutate(Transcript = fct_inorder(Transcript)) %>%
+      mutate(Transcript = forcats::fct_inorder(Transcript)) %>%
       ggplot() +
       theme_minimal() +
       {if(input$log_scale) {
@@ -262,7 +262,7 @@ server <- function(input, output, session) {
       } else {
         geom_tile(aes(x = Neuron, y =  Transcript, fill = TPM))}} +
       geom_text(aes(x = 'Gene', y = Transcript, color = Gene, label = Gene)) +
-      scale_x_discrete(limits = c(unique(plot_data$Neuron), '','Gene',' ')) +
+      scale_x_discrete(limits = c(unique(plot_data$neuron_id), '','Gene',' ')) +
       # viridis::scale_fill_viridis(direction = 1, option = "magma") +
       scale_fill_gradientn(colors = MetBrewer::met.brewer("OKeeffe2",direction = -1)) +
       theme(axis.text.x = element_text(angle = 90,
