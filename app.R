@@ -41,8 +41,8 @@ readr::stop_for_problems(neurons_table)
 #~~ lookup tables ----
 tsingle_color_scales <- tribble(
   ~shortcode,              ~fill_scale,                                    ~color_scale,
-  'viridis' ,              viridis::scale_fill_viridis(discrete = TRUE),   viridis::scale_color_viridis(discrete = TRUE),
   'ggsci D3 (category20)', ggsci::scale_fill_d3("category20"),             ggsci::scale_color_d3("category20"),
+  'viridis' ,              viridis::scale_fill_viridis(discrete = TRUE),   viridis::scale_color_viridis(discrete = TRUE),
   'ggsci npg',             ggsci::scale_fill_npg(),                        ggsci::scale_color_npg(),
   'iwanthue',              hues::scale_fill_iwanthue(),                    hues::scale_color_iwanthue())
 
@@ -105,9 +105,22 @@ ui <- fluidPage(
                  width = 2
                ),
                mainPanel(
-                 uiOutput("wormbase_browser_url"),
-                 plotly::plotlyOutput("single_gene_proportions"),
-                 plotly::plotlyOutput("single_gene_tpm"),
+                 fluidRow(
+                   column(width = 2,
+                          uiOutput("wormbase_browser_url"),
+                          style = "margin-left:10px;margin-top:40px"),
+                   column(width = 8,
+                          plotly::plotlyOutput("single_gene_average",
+                                               height = "150px",
+                                               width = "90%"),
+                          offset = 1,
+                          align = "center"
+                          ),
+                 ),
+                 plotly::plotlyOutput("single_gene_proportions",
+                                      height = "600px"),
+                 plotly::plotlyOutput("single_gene_tpm",
+                                      height = "600px"),
                  width = 8
                )
              )
@@ -276,6 +289,35 @@ server <- function(input, output, session) {
                                             style = "fontweight:800"))
   
   
+  ##~ prepare average ----
+  plot_tsingle_average <- eventReactive(
+    eventExpr = input$submit_tsingle,
+    valueExpr = {
+      
+      tsingle_data_from_db() %>%
+        group_by(transcript_id, neuron_id) %>%
+        summarize(mean_cnt = mean(TPM),
+                  .groups = "drop_last") %>%
+        summarize(mean_cnt = mean(mean_cnt),
+                  .groups = "drop") %>%
+        select(Transcript = transcript_id,
+               `Transcript Usage` = mean_cnt) %>%
+        ggplot(aes(x=1,
+                   y=`Transcript Usage`,
+                   fill = Transcript)) +
+        ylab("Mean transcript usage (TPM)") +
+        geom_col(position = position_stack()) +
+        theme_classic() +
+        coord_flip() +
+        labs(x = NULL,
+             title = paste0(r_tsingle_gene_name(), "/", r_tsingle_gene_id(),
+                            " — average across neurons")) +
+        r_tsingle_scaleFill() +
+        scale_x_discrete(NULL)
+      
+      
+    }
+  )
   
   ##~ prepare proportions ----
   plot_tsingle_props <- eventReactive(
@@ -387,7 +429,9 @@ server <- function(input, output, session) {
     plotly::ggplotly(plot_tsingle_tpms())
   })
   
-  
+  output$single_gene_average <- plotly::renderPlotly({
+    plotly::ggplotly(plot_tsingle_average())
+  })
   
   
   
