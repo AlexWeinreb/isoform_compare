@@ -25,7 +25,7 @@ onStop(function() {
 tx_long <- tbl(t_exp_db, "t_exp")
 
 
-measured_neurons <- qs::qread("data/measured_neurons.qs")
+measured_neurons <- readLines("data/measured_neurons.txt")
 
 
 neurons_table <- readr::read_csv("data/neuron_properties.csv",
