@@ -25,10 +25,7 @@ onStop(function() {
 tx_long <- tbl(t_exp_db, "t_exp")
 
 
-measured_neurons <- tx_long %>%
-  select(neuron_id) %>%
-  distinct() %>%
-  pull(neuron_id)
+measured_neurons <- qs::qread("data/measured_neurons.qs")
 
 
 neurons_table <- readr::read_csv("data/neuron_properties.csv",

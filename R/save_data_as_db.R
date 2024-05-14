@@ -30,6 +30,9 @@
 # con <- DBI::dbConnect(RSQLite::SQLite(), "data/t_exp.sqlite.db")
 # DBI::dbWriteTable(con, name = "t_exp",value = tx_long2)
 # DBI::dbDisconnect(con)
+# 
+# unique(tx_long$neuron_id) |>
+#   qs::qsave("data/measured_neurons.qs")
 
 
 # 
