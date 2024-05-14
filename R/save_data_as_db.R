@@ -1,7 +1,7 @@
 # library(readr)
 # library(dplyr)
 # library(wbData)
-# gcoords <- wb_load_gene_coords(281)
+# gcoords <- wb_load_gene_coords(289)
 # 
 # tx_long <- read_tsv("data/t_exp.tsv",
 #                     col_types = cols(transcript_id = col_character(),
@@ -22,15 +22,15 @@
 #   select(gene_id, browser_url) %>%
 #   right_join(tx_long,
 #              by = "gene_id")
-#   
 # 
 # 
-# # 
+# 
+# #
 # # # save as SQLite
 # con <- DBI::dbConnect(RSQLite::SQLite(), "data/t_exp.sqlite.db")
 # DBI::dbWriteTable(con, name = "t_exp",value = tx_long2)
 # DBI::dbDisconnect(con)
-# 
+
 
 # 
 # # save as DuckDB
