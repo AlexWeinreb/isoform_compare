@@ -178,6 +178,7 @@ server <- function(input, output, session) {
   
   # For the tab Single gene
   r_tsingle_gene_id <- reactive({
+    showNotification("Processing gene...", duration = 2)
     input$tsingle_genes %>%
       split_text_to_vector() %>%
       .[[1]] %>%
@@ -190,6 +191,7 @@ server <- function(input, output, session) {
   })
   
   r_tsingle_neurons <- reactive({
+    showNotification("Processing neuron...", duration = 2)
     input$tsingle_neurons %>%
       stringr::str_to_upper() %>%
       split_text_to_vector() %>%
@@ -440,6 +442,7 @@ server <- function(input, output, session) {
   plot_theatmap <- eventReactive(
     eventExpr = input$submit_theatmap,
     valueExpr = {
+      showNotification("Plotting...", duration = 2)
       heatmap_data() %>%
         mutate(gene_id = i2s(gene_id, gids)) %>%
         group_by(gene_id, transcript_id, neuron_id) %>%
