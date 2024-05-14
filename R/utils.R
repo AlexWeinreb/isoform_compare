@@ -3,6 +3,61 @@
 pct <- function(...) scales::number(..., suffix = "%")
 
 
+# copy relevant functions from wbData
+wb_load_gene_ids <- function(WS){
+  
+  # validate input
+  dir_cache <- "."
+  
+  cached_file <- paste0("data/c_elegans.PRJNA13758.WS",WS,".geneIDs.txt.gz")
+  
+  
+  
+  # read data, note format changed between versions
+  if(WS >= 264){
+    geneIDs <- readr::read_csv(cached_file,
+                               col_names = c("X", "gene_id","symbol",
+                                             "sequence","status","biotype"),
+                               col_types = "cccccc")
+  } else if(WS >= 236){
+    geneIDs <- readr::read_csv(cached_file,
+                               col_names = c("X", "gene_id","symbol",
+                                             "sequence","status"),
+                               col_types = "ccccc")
+  } else{
+    geneIDs <- readr::read_csv(cached_file,
+                               col_names = c("gene_id","symbol","sequence"),
+                               col_types = "ccc")
+  }
+  
+  geneIDs$name <- ifelse(!is.na(geneIDs$symbol), geneIDs$symbol, geneIDs$sequence)
+  geneIDs
+}
+
+i2s <- function(gene_id, geneIDs, warn_missing = FALSE){
+  res <- geneIDs$name[match(gene_id, geneIDs$gene_id, incomparables = NA)]
+  if(warn_missing && any(is.na(res))){
+    warning("i2s: ",sum(is.na(res))," gene IDs could not be converted. NA are returned.")
+  }
+  res
+}
+wb_seq2id <- function(seq_id, geneIDs, warn_missing = FALSE){
+  res <- geneIDs$gene_id[match(seq_id, geneIDs$sequence, incomparables = NA)]
+  if(warn_missing && any(is.na(res))){
+    warning("wb_seq2symbol: ",sum(is.na(res))," sequence IDs could not be converted. NA are returned.")
+  }
+  res
+}
+s2i <- function(symbol, geneIDs, warn_missing = FALSE){
+  res <- geneIDs$gene_id[match(symbol, geneIDs$name, incomparables = NA)]
+  if(warn_missing && any(is.na(res))){
+    warning("s2i: ",sum(is.na(res))," gene symbols could not be converted. NA are returned.")
+  }
+  res
+}
+
+
+
 # Convert vector of any gene format into WBGene ID
 convert_to_wb_id <- function(gene_id_or_name, gids){
   is_wb_id <- stringr::str_detect(gene_id_or_name, "^WBGene[\\d]{8}$")

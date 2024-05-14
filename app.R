@@ -6,10 +6,11 @@
 #~ Packages ----
 library(shiny)
 library(dplyr)
+library(dbplyr)
 library(ggplot2)
 
+source("R/utils.R")
 
-library(wbData)
 gids <- wb_load_gene_ids(289)
 
 #~ Data ----
@@ -62,8 +63,6 @@ scale_callback <- tribble(
 #~~ help text ----
 explainNeurons_text <- 'Use ALL for all neurons, individual neuron names (e.g. "AWA", "ASEL", or "OLL"), or keywords such as "ACh", "motor", "sensory", ... The combination of all neurons corresponding to these keywords will be displayed.'
 
-#~~ functions ----
-source("R/utils.R")
 
 
 
