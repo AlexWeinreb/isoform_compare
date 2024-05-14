@@ -23,19 +23,12 @@
 #   right_join(tx_long,
 #              by = "gene_id")
 # 
-# 
-# 
-# #
-# # # save as SQLite
-# con <- DBI::dbConnect(RSQLite::SQLite(), "data/t_exp.sqlite.db")
+# # save as DuckDB
+# con <- DBI::dbConnect(duckdb::duckdb(), "data/t_exp.duckdb")
 # DBI::dbWriteTable(con, name = "t_exp",value = tx_long2)
-# DBI::dbDisconnect(con)
+# 
+# 
 # 
 # unique(tx_long$neuron_id) |>
 #   qs::qsave("data/measured_neurons.qs")
-
-
 # 
-# # save as DuckDB
-# con <- DBI::dbConnect(duckdb::duckdb(), "data/t_exp.duckdb.db")
-# DBI::dbWriteTable(con, name = "t_exp",value = tx_long)
