@@ -287,8 +287,7 @@ server <- function(input, output, session) {
   
   output$wormbase_browser_url <- renderUI(a("Open in Wormbase browser",
                                             href = r_wormbase_link(),
-                                            class = "btn btn-default action-button", 
-                                            style = "fontweight:800"))
+                                            class = "btn btn-default"))
   
   
   ##~ prepare average ----
