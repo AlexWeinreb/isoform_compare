@@ -10,7 +10,7 @@ library(ggplot2)
 
 
 library(wbData)
-gids <- wb_load_gene_ids(281)
+gids <- wb_load_gene_ids(289)
 
 #~ Data ----
 
