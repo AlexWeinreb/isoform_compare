@@ -71,6 +71,7 @@ source("R/utils.R")
 # UI ----
 ui <- fluidPage(
   
+  tags$head(includeHTML(("google-analytics.html"))),
   titlePanel("Transcript-level quantification"),
   # Layout: 2 tabs, each with a sidebar Layout
   tabsetPanel(
