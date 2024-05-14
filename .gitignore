@@ -3,5 +3,8 @@
 .RData
 .Ruserdata
 data/t_exp*
+data/measured_neurons.txt
+data/c_elegans.PRJNA13758.WS*.geneIDs.txt.gz
+rsconnect/
 google-analytics.html
 
